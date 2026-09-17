@@ -61,15 +61,13 @@ jobs:
           persist-credentials: 'false'
 
       # Pre-pull the GitHub MCP server image so it starts instantly (otherwise the pull races the
-      # model and the tools register only after the model has burned its turns).
+      # model and its tools register only after the model has burned its turns).
       - name: 'Pre-pull GitHub MCP server image'
         run: docker pull ghcr.io/github/github-mcp-server:v0.27.0
 
       - name: 'Gemini PR review'
         uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
         env:
-          # trust=true so the code-review extension installs without an interactive prompt (would
-          # hang headless CI). Safe: the gate restricts triggering to trusted members/collaborators.
           GEMINI_CLI_TRUST_WORKSPACE: 'true'
           GITHUB_TOKEN: '${{ github.token }}'
           # gemini-cli redacts base-env vars matching *TOKEN*/*KEY*/... before expanding ${...} for
@@ -86,6 +84,8 @@ jobs:
           gemini_debug: 'true'
           gemini_cli_version: '0.59.0'
           workflow_name: 'gemini-pr-review'
+          # gemini-cli's tools.core wildcard-DENY bug (gemini-cli#28361) strips MCP tools unless
+          # mcp_github_* is explicitly allowed here; activate_skill kept for forward-compat.
           settings: |-
             {
               "model": { "maxSessionTurns": 50 },
@@ -99,6 +99,29 @@ jobs:
               },
               "tools": { "core": ["activate_skill", "read_file", "list_directory", "glob", "mcp_github_*"] }
             }
-          extensions: |
-            ["https://github.com/gemini-cli-extensions/code-review"]
-          prompt: '/pr-code-review'
+          # Custom prompt with the REAL gemini-cli MCP tool names. The stock code-review extension's
+          # /pr-code-review prompt uses stale names (run-gemini-cli#510), so the model never invokes
+          # the tools and flails. Review rubric = the repo's GEMINI.md (auto-loaded as context).
+          prompt: |-
+            You are an automated pull-request reviewer running headless in CI. Review pull request
+            number ${{ github.event.pull_request.number || github.event.issue.number }} in the GitHub
+            repository ${{ github.repository }} (owner and repo are the two halves of that slug).
+            Apply this repository's GEMINI.md as the review rubric. Review ONLY the changed lines; use
+            repository context for correctness; skip pre-existing issues unrelated to this diff.
+
+            Use ONLY these tools (exact names; each takes a `method` parameter plus the owner/repo/
+            pullNumber above — do NOT invent tool names or read the diff off the local filesystem):
+              - mcp_github_pull_request_read        (method "get_diff" for the diff; "get" for metadata)
+              - mcp_github_pull_request_review_write (method "create" opens a pending review; method
+                "submit_pending" submits it)
+              - mcp_github_add_comment_to_pending_review (one inline comment on a specific file + line)
+
+            Steps, in order:
+              1. mcp_github_pull_request_read (method "get_diff") to fetch the diff.
+              2. mcp_github_pull_request_review_write (method "create") to open a pending review.
+              3. For each real, specific defect, mcp_github_add_comment_to_pending_review on the exact
+                 changed file + line. Prefer precision over volume; group minor nits; always flag
+                 security issues; add a concrete suggestion when the fix is small.
+              4. mcp_github_pull_request_review_write (method "submit_pending") with a concise summary
+                 body and event "COMMENT". If nothing substantive, submit a brief note of what you
+                 checked. ALWAYS finish by submitting the pending review.
