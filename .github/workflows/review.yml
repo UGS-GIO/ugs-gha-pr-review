@@ -89,7 +89,7 @@ jobs:
                   "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }
                 }
               },
-              "tools": { "core": [] }
+              "tools": { "core": ["read_file", "list_directory", "glob"] }
             }
           extensions: |
             ["https://github.com/gemini-cli-extensions/code-review"]
