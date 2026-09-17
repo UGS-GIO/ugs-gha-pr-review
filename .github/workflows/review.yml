@@ -33,23 +33,25 @@ jobs:
   review:
     runs-on: 'ubuntu-latest'
     timeout-minutes: 15
-    # Whitelist gate. Auto-review ONLY non-draft, non-bot PRs from org members/collaborators on a
-    # branch in this repo (never forks). A member/collaborator can also opt a PR in (incl. fork /
-    # outside PRs) by commenting '/review' or '@gemini-cli /review'. Everything else — bots,
-    # first-time/outside contributors, drafts — is skipped, so nothing burns Vertex budget without
-    # a trusted human in the loop.
+    # Whitelist gate. Auto-review ONLY non-draft, non-bot PRs on a branch in THIS repo (never
+    # forks). A member/collaborator/contributor can also opt a PR in (incl. fork / outside PRs)
+    # by commenting '/review' or '@gemini-cli /review'. CONTRIBUTOR is in the allowlist because an
+    # org member whose org membership is PRIVATE surfaces as CONTRIBUTOR (not MEMBER) in the
+    # webhook payload; on the auto path fork==false still limits it to authors with push access.
+    # Bots, FIRST_TIME_CONTRIBUTOR / NONE authors, and drafts are skipped, so nothing burns Vertex
+    # budget without a trusted human in the loop.
     if: >-
       ${{
         (github.event_name == 'pull_request'
           && github.event.pull_request.draft == false
           && github.event.pull_request.head.repo.fork == false
           && github.event.pull_request.user.type != 'Bot'
-          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.pull_request.author_association))
         ||
         (github.event_name == 'issue_comment'
           && github.event.issue.pull_request != null
           && (startsWith(github.event.comment.body, '/review') || startsWith(github.event.comment.body, '@gemini-cli /review'))
-          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.comment.author_association))
       }}
     permissions:
       contents: 'read'
