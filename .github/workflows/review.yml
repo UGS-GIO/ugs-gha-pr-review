@@ -87,6 +87,10 @@ jobs:
           gemini_model: '${{ inputs.gemini_model || vars.GEMINI_MODEL }}'
           github_pr_number: '${{ github.event.pull_request.number || github.event.issue.number }}'
           gemini_debug: 'true'
+          # Pin to the stable release just before 0.60.0 (which has policy-engine + workspace-guard
+          # regressions that break the code-review extension in headless CI). 0.59.0 postdates the
+          # gemini-3.8-flash release, so the model is still supported.
+          gemini_cli_version: '0.59.0'
           workflow_name: 'gemini-pr-review'
           settings: |-
             {
