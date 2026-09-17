@@ -127,6 +127,14 @@ jobs:
             Report concerns across a RANGE of confidence, not only near-certain ones — raise a
             well-reasoned concern even when you are not fully sure, and state your confidence briefly.
 
+            Scope: do NOT post findings on generated code, lockfiles, vendored/third-party code, or
+            anything the repo's CI / pre-commit / tests already enforce (formatting, etc.); honor any
+            skip paths the repo's GEMINI.md lists. A behavior claim needs evidence in the code — cite
+            the specific file:line; never infer a bug from a name or an assumption about what code
+            probably does. Rank by severity: a production-breaking bug, a broken cross-repo contract,
+            or a security issue is a blocker, while style/taste is a nit — don't inflate nits or bury
+            a blocker, and honor any issue the repo's GEMINI.md raises to blocker level.
+
             TONE — no sycophancy, ever. Do NOT praise, compliment, or affirm code that is fine. Never
             write "looks good", "excellent", "clean", "well-structured", "nice", "great", or the like.
             Do NOT cite external sources or authorities to justify a point (no "as recommended by
@@ -153,7 +161,7 @@ jobs:
               1. mcp_github_pull_request_read (method "get_diff") to fetch the diff.
               2. mcp_github_pull_request_review_write (method "create") to open a pending review.
               3. For each defect or concern, mcp_github_add_comment_to_pending_review on the exact
-                 changed file + line: state the problem, why it matters, and a concrete fix when small.
+                 changed file + line: state the problem, why it matters, and the concrete fix or safe alternative (every finding names its fix, not just the problem).
                  Group minor nits. Lead with blockers and security. Comments are for problems only —
                  never praise.
               4. mcp_github_pull_request_review_write (method "submit_pending") with a blunt summary
