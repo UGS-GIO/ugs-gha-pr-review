@@ -60,9 +60,8 @@ jobs:
         with:
           persist-credentials: 'false'
 
-      # Pre-pull the GitHub MCP server image so it starts instantly. Otherwise the pull races the
-      # model: the tools register only after the image finishes downloading, by which point the
-      # model has already burned its turns retrying the not-yet-available PR tools.
+      # Pre-pull the GitHub MCP server image so it starts instantly (otherwise the pull races the
+      # model and the tools register only after the model has burned its turns).
       - name: 'Pre-pull GitHub MCP server image'
         run: docker pull ghcr.io/github/github-mcp-server:v0.27.0
 
@@ -70,13 +69,11 @@ jobs:
         uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
         env:
           # trust=true so the code-review extension installs without an interactive prompt (would
-          # hang headless CI). Safe: the gate restricts triggering to trusted members/collaborators
-          # and the tool set below is read + PR-comment only.
+          # hang headless CI). Safe: the gate restricts triggering to trusted members/collaborators.
           GEMINI_CLI_TRUST_WORKSPACE: 'true'
           GITHUB_TOKEN: '${{ github.token }}'
-          # gemini-cli redacts base-env vars matching *TOKEN*/*KEY*/*SECRET*/*AUTH*/... before
-          # expanding ${...} for MCP servers, so ${GITHUB_TOKEN} resolves empty. Carry the token in
-          # a name that does NOT match those patterns; reference it from the server env below.
+          # gemini-cli redacts base-env vars matching *TOKEN*/*KEY*/... before expanding ${...} for
+          # MCP servers, so ${GITHUB_TOKEN} resolves empty. Carry the token in a non-matching name.
           GH_MCP_PAT: '${{ github.token }}'
         with:
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
@@ -87,9 +84,6 @@ jobs:
           gemini_model: '${{ inputs.gemini_model || vars.GEMINI_MODEL }}'
           github_pr_number: '${{ github.event.pull_request.number || github.event.issue.number }}'
           gemini_debug: 'true'
-          # Pin to the stable release just before 0.60.0 (which has policy-engine + workspace-guard
-          # regressions that break the code-review extension in headless CI). 0.59.0 postdates the
-          # gemini-3.8-flash release, so the model is still supported.
           gemini_cli_version: '0.59.0'
           workflow_name: 'gemini-pr-review'
           settings: |-
@@ -99,11 +93,11 @@ jobs:
                 "github": {
                   "command": "docker",
                   "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server:v0.27.0"],
-                  "includeTools": ["get_me", "pull_request_read", "create_pending_pull_request_review", "add_comment_to_pending_review", "submit_pending_pull_request_review"],
+                  "includeTools": ["pull_request_read", "pull_request_review_write", "add_comment_to_pending_review"],
                   "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GH_MCP_PAT}" }
                 }
               },
-              "tools": { "core": ["read_file", "list_directory", "glob"] }
+              "tools": { "core": ["activate_skill", "read_file", "list_directory", "glob", "mcp_github_*"] }
             }
           extensions: |
             ["https://github.com/gemini-cli-extensions/code-review"]
