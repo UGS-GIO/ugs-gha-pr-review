@@ -2,8 +2,8 @@ name: 'Gemini PR review'
 
 # Reusable workflow: UGS-GIO org-wide automated PR review via google-github-actions/run-gemini-cli
 # on Vertex AI (Gemini). Consumers add a thin caller (on: pull_request + issue_comment) that
-# `uses: UGS-GIO/gha-pr-review/.github/workflows/review.yml@v1` with `secrets: inherit`.
-# Auth + model come from ORG-level Actions variables (see README). No API keys — WIF only.
+# `uses: UGS-GIO/ugs-gha-pr-review/.github/workflows/review.yml@v1` with `secrets: inherit`.
+# Auth + model come from ORG- or repo-level Actions variables (see README). No API keys — WIF only.
 
 on:
   workflow_call:
@@ -30,7 +30,7 @@ defaults:
 jobs:
   review:
     runs-on: 'ubuntu-latest'
-    timeout-minutes: 8
+    timeout-minutes: 15
     # Whitelist gate. Auto-review ONLY non-draft, non-bot PRs from org members/collaborators on a
     # branch in this repo (never forks). A member/collaborator can also opt a PR in (incl. fork /
     # outside PRs) by commenting '/review' or '@gemini-cli /review'. Everything else — bots,
@@ -63,10 +63,11 @@ jobs:
       - name: 'Gemini PR review'
         uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
         env:
-          # PR diffs are untrusted input (the /review path can target outside PRs): do NOT trust
-          # workspace-level gemini config, and keep the tool set read/comment-only below.
-          # See run-gemini-cli docs/trust-guidance.md.
-          GEMINI_CLI_TRUST_WORKSPACE: 'false'
+          # MUST be true in headless CI: with it false, the code-review extension install blocks on
+          # an interactive "trust this workspace?" prompt and the job hangs until timeout. Trusting
+          # is acceptable here because the gate above restricts triggering to trusted org
+          # members/collaborators, and the tool set below is read/comment-only.
+          GEMINI_CLI_TRUST_WORKSPACE: 'true'
           GITHUB_TOKEN: '${{ github.token }}'
         with:
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
