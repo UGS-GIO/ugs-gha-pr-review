@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Bump the SHA-pinned actions in review.yml (run-gemini-cli, checkout) as reviewable PRs, so a
+  # silent action-internal change surfaces as a diff instead of arriving via a floating tag.
+  # (The github-mcp-server docker image tag in review.yml's settings is a plain string, not a
+  # `uses:` ref, so it isn't covered here — bump it by hand when needed.)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
