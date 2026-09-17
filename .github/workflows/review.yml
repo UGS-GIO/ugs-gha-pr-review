@@ -81,7 +81,6 @@ jobs:
           use_vertex_ai: '${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}'
           gemini_model: '${{ inputs.gemini_model || vars.GEMINI_MODEL }}'
           github_pr_number: '${{ github.event.pull_request.number || github.event.issue.number }}'
-          gemini_debug: 'true'
           gemini_cli_version: '0.59.0'
           workflow_name: 'gemini-pr-review'
           # gemini-cli's tools.core wildcard-DENY bug (gemini-cli#28361) strips MCP tools unless
