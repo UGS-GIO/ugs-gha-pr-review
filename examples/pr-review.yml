@@ -1,0 +1,19 @@
+# Copy to .github/workflows/pr-review.yml in a consumer repo, then add a repo-root GEMINI.md.
+name: PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    # id-token: write is required for Workload Identity Federation and is never granted by default.
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+      issues: write
+    uses: UGS-GIO/ugs-gha-pr-review/.github/workflows/review.yml@v1
+    secrets: inherit

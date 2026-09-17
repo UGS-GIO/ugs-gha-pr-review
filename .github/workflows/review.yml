@@ -1,0 +1,95 @@
+name: 'Gemini PR review'
+
+# Reusable workflow: UGS-GIO org-wide automated PR review via google-github-actions/run-gemini-cli
+# on Vertex AI (Gemini). Consumers add a thin caller (on: pull_request + issue_comment) that
+# `uses: UGS-GIO/gha-pr-review/.github/workflows/review.yml@v1` with `secrets: inherit`.
+# Auth + model come from ORG-level Actions variables (see README). No API keys — WIF only.
+
+on:
+  workflow_call:
+    inputs:
+      gemini_model:
+        description: 'Optional per-repo override of the org default GEMINI_MODEL.'
+        type: string
+        required: false
+        default: ''
+      additional_context:
+        description: 'Optional extra context appended to the review request.'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: 'gemini-pr-review-${{ github.event.pull_request.number || github.event.issue.number }}'
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  review:
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 8
+    # Whitelist gate. Auto-review ONLY non-draft, non-bot PRs from org members/collaborators on a
+    # branch in this repo (never forks). A member/collaborator can also opt a PR in (incl. fork /
+    # outside PRs) by commenting '/review' or '@gemini-cli /review'. Everything else — bots,
+    # first-time/outside contributors, drafts — is skipped, so nothing burns Vertex budget without
+    # a trusted human in the loop.
+    if: >-
+      ${{
+        (github.event_name == 'pull_request'
+          && github.event.pull_request.draft == false
+          && github.event.pull_request.head.repo.fork == false
+          && github.event.pull_request.user.type != 'Bot'
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+        ||
+        (github.event_name == 'issue_comment'
+          && github.event.issue.pull_request != null
+          && (startsWith(github.event.comment.body, '/review') || startsWith(github.event.comment.body, '@gemini-cli /review'))
+          && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+      }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      pull-requests: 'write'
+      issues: 'write'
+    steps:
+      - name: 'Checkout (no persisted credentials)'
+        uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' # v7.0.1
+        with:
+          persist-credentials: 'false'
+
+      - name: 'Gemini PR review'
+        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
+        env:
+          # PR diffs are untrusted input (the /review path can target outside PRs): do NOT trust
+          # workspace-level gemini config, and keep the tool set read/comment-only below.
+          # See run-gemini-cli docs/trust-guidance.md.
+          GEMINI_CLI_TRUST_WORKSPACE: 'false'
+          GITHUB_TOKEN: '${{ github.token }}'
+        with:
+          gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
+          gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
+          gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
+          gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
+          use_vertex_ai: '${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}'
+          gemini_model: '${{ inputs.gemini_model || vars.GEMINI_MODEL }}'
+          github_pr_number: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          workflow_name: 'gemini-pr-review'
+          settings: |-
+            {
+              "model": { "maxSessionTurns": 25 },
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                  "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server:v0.27.0"],
+                  "includeTools": ["add_comment_to_pending_review", "pull_request_read", "pull_request_review_write"],
+                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }
+                }
+              },
+              "tools": { "core": [] }
+            }
+          extensions: |
+            ["https://github.com/gemini-cli-extensions/code-review"]
+          prompt: '/pr-code-review'
