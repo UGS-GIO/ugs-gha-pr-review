@@ -60,6 +60,12 @@ jobs:
         with:
           persist-credentials: 'false'
 
+      # Pre-pull the GitHub MCP server image so it starts instantly. Otherwise the pull races the
+      # model: the tools register only after the image finishes downloading, by which point the
+      # model has already burned its turns retrying the not-yet-available PR tools.
+      - name: 'Pre-pull GitHub MCP server image'
+        run: docker pull ghcr.io/github/github-mcp-server:v0.27.0
+
       - name: 'Gemini PR review'
         uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
         env:
@@ -84,7 +90,7 @@ jobs:
           workflow_name: 'gemini-pr-review'
           settings: |-
             {
-              "model": { "maxSessionTurns": 25 },
+              "model": { "maxSessionTurns": 50 },
               "mcpServers": {
                 "github": {
                   "command": "docker",
