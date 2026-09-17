@@ -21,7 +21,7 @@ on:
 
 concurrency:
   # Key by event + comment id so a new PR push cancels a stale review, but a /review COMMENT never
-  # cancels an in-flight push-triggered review (GeoLibre pattern).
+  # cancels an in-flight push-triggered review.
   group: 'gemini-pr-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}-${{ github.event.comment.id || ''push'' }}'
   cancel-in-progress: true
 
